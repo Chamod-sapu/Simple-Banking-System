@@ -1,5 +1,12 @@
 trigger:
-  - main
+  branches:
+    include:
+      - main
+
+pr:
+  branches:
+    include:
+      - main
 
 pool:
   vmImage: 'ubuntu-latest'
@@ -14,9 +21,12 @@ variables:
 stages:
 - stage: Infrastructure
   displayName: 'Provision Infrastructure (Terraform)'
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
   jobs:
   - job: Terraform
     steps:
+    - checkout: self
+      clean: true
     - task: TerraformInstaller@0
       inputs:
         terraformVersion: 'latest'
@@ -42,10 +52,13 @@ stages:
 
 - stage: BuildAndPush
   displayName: 'Build and Push Docker Images'
-  # dependsOn: Infrastructure  # Uncomment if infrastructure must be built first in the pipeline flow
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  # dependsOn: Infrastructure
   jobs:
   - job: DockerBuildServices
     steps:
+    - checkout: self
+      clean: true
     - task: Docker@2
       displayName: 'Auth Service Build & Push'
       inputs:
@@ -126,9 +139,12 @@ stages:
 - stage: Deploy
   displayName: 'Deploy to AKS (Ansible)'
   dependsOn: BuildAndPush
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
   jobs:
   - job: AnsibleDeploy
     steps:
+    - checkout: self
+      clean: true
     - task: UsePythonVersion@0
       inputs:
         versionSpec: '3.x'
