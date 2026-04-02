@@ -1,0 +1,42 @@
+---
+- name: Deploy Banking Microservices to AKS
+  hosts: localhost
+  connection: local
+  collections:
+    - kubernetes.core
+  tasks:
+    - name: Ensure Kubernetes namespace exists (default)
+      k8s:
+        name: default
+        api_version: v1
+        kind: Namespace
+        state: present
+
+    - name: Apply MySQL Secret
+      k8s:
+        state: present
+        src: ../kubernetes/mysql-secret.yaml
+        kubeconfig: "{{ kubeconfig_path | default(omit) }}"
+        
+    - name: Apply MySQL Database
+      k8s:
+        state: present
+        src: ../kubernetes/mysql-db.yaml
+        kubeconfig: "{{ kubeconfig_path | default(omit) }}"
+
+    - name: Apply all Deployments
+      k8s:
+        state: present
+        src: "{{ item }}"
+        kubeconfig: "{{ kubeconfig_path | default(omit) }}"
+      with_fileglob:
+        - "../kubernetes/*-deployment.yaml"
+        - "../kubernetes/*-deployement.yaml"
+
+    - name: Apply all Services
+      k8s:
+        state: present
+        src: "{{ item }}"
+        kubeconfig: "{{ kubeconfig_path | default(omit) }}"
+      with_fileglob:
+        - "../kubernetes/*-service.yaml"

@@ -1,0 +1,148 @@
+trigger:
+  - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  azureServiceConnection: 'AzureRM-Connection' # Replace with your Azure DevOps Service Connection name
+  resourceGroup: 'banking-rg'
+  acrName: 'bankingacr123'
+  acrLoginServer: 'bankingacr123.azurecr.io'
+  aksName: 'banking-aks-cluster'
+
+stages:
+- stage: Infrastructure
+  displayName: 'Provision Infrastructure (Terraform)'
+  jobs:
+  - job: Terraform
+    steps:
+    - task: TerraformInstaller@0
+      inputs:
+        terraformVersion: 'latest'
+    - task: TerraformTaskV3@3
+      displayName: 'Terraform Init'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        backendServiceArm: '$(azureServiceConnection)'
+        backendAzureRmResourceGroupName: '$(resourceGroup)'
+        backendAzureRmStorageAccountName: 'tfstatestorage'
+        backendAzureRmContainerName: 'tfstate'
+        backendAzureRmKey: 'terraform.tfstate'
+    - task: TerraformTaskV3@3
+      displayName: 'Terraform Apply'
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/terraform'
+        environmentServiceNameAzureRM: '$(azureServiceConnection)'
+        commandOptions: '-auto-approve'
+
+- stage: BuildAndPush
+  displayName: 'Build and Push Docker Images'
+  # dependsOn: Infrastructure  # Uncomment if infrastructure must be built first in the pipeline flow
+  jobs:
+  - job: DockerBuildServices
+    steps:
+    - task: Docker@2
+      displayName: 'Auth Service Build & Push'
+      inputs:
+        containerRegistry: '$(azureServiceConnection)' # Uses the service connection to ACR natively
+        repository: 'microservices-auth-service'
+        command: 'buildAndPush'
+        Dockerfile: 'auth-service/Dockerfile'
+        tags: |
+          latest
+          $(Build.BuildId)
+
+    - task: Docker@2
+      displayName: 'Account Service Build & Push'
+      inputs:
+        containerRegistry: '$(azureServiceConnection)'
+        repository: 'microservices-account-service'
+        command: 'buildAndPush'
+        Dockerfile: 'account-service/Dockerfile'
+        tags: |
+          latest
+          $(Build.BuildId)
+
+    - task: Docker@2
+      displayName: 'Transaction Service Build & Push'
+      inputs:
+        containerRegistry: '$(azureServiceConnection)'
+        repository: 'microservices-transaction-service'
+        command: 'buildAndPush'
+        Dockerfile: 'transaction-service/Dockerfile'
+        tags: |
+          latest
+          $(Build.BuildId)
+
+    - task: Docker@2
+      displayName: 'Notification Service Build & Push'
+      inputs:
+        containerRegistry: '$(azureServiceConnection)'
+        repository: 'microservices-notification-service'
+        command: 'buildAndPush'
+        Dockerfile: 'notification-service/Dockerfile'
+        tags: |
+          latest
+          $(Build.BuildId)
+
+    - task: Docker@2
+      displayName: 'Eureka Server Build & Push'
+      inputs:
+        containerRegistry: '$(azureServiceConnection)'
+        repository: 'microservices-eureka-server'
+        command: 'buildAndPush'
+        Dockerfile: 'eureka-server/Dockerfile'
+        tags: |
+          latest
+          $(Build.BuildId)
+
+    - task: Docker@2
+      displayName: 'API Gateway Build & Push'
+      inputs:
+        containerRegistry: '$(azureServiceConnection)'
+        repository: 'microservices-api-gateway'
+        command: 'buildAndPush'
+        Dockerfile: 'api-gateway/Dockerfile'
+        tags: |
+          latest
+          $(Build.BuildId)
+          
+    - task: Docker@2
+      displayName: 'Banking Frontend Build & Push'
+      inputs:
+        containerRegistry: '$(azureServiceConnection)'
+        repository: 'microservices-banking-frontend'
+        command: 'buildAndPush'
+        Dockerfile: 'banking-frontend/Dockerfile'
+        tags: |
+          latest
+          $(Build.BuildId)
+
+- stage: Deploy
+  displayName: 'Deploy to AKS (Ansible)'
+  dependsOn: BuildAndPush
+  jobs:
+  - job: AnsibleDeploy
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.x'
+    - script: |
+        pip install ansible kubernetes openshift
+        ansible-galaxy collection install kubernetes.core
+      displayName: 'Install Ansible & K8s core dependencies'
+    - task: AzureCLI@2
+      displayName: 'Apply Kubernetes manifest using Ansible'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az aks get-credentials --resource-group $(resourceGroup) --name $(aksName) --file $(System.DefaultWorkingDirectory)/kubeconfig
+          export KUBECONFIG=$(System.DefaultWorkingDirectory)/kubeconfig
+          ansible-playbook ansible/deploy-k8s.yaml -e kubeconfig_path=$KUBECONFIG

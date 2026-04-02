@@ -1,0 +1,52 @@
+server:
+  port: 8089
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      routes:
+        # Auth Service Routes (no JWT needed)
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/**
+
+        # Account Service Routes
+        - id: account-service
+          uri: lb://account-service
+          predicates:
+            - Path=/accounts/**
+
+        # Transaction Service Routes
+        - id: transaction-service
+          uri: lb://transaction-service
+          predicates:
+            - Path=/transactions/**
+
+        # Notification Service Routes
+        - id: notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/notifications/**
+
+eureka:
+  client:
+    serviceUrl:
+      # Local environment
+      # defaultZone: http://localhost:8761/eureka/
+      # Cloud environment
+      defaultZone: http://eureka-server:8761/eureka/
+  instance:
+    preferIpAddress: true
+
+# JWT Configuration (must match auth-service)
+jwt:
+  secret: banking_secret_key_fixed_length_32_chars_plus
+
+logging:
+  level:
+    root: INFO
+    com.bank.gateway: DEBUG
+    org.springframework.cloud.gateway: DEBUG

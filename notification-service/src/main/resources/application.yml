@@ -1,0 +1,20 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: notification-service
+
+eureka:
+  client:
+    serviceUrl:
+      # Local environment
+      # defaultZone: http://localhost:8761/eureka/
+      # Cloud environment
+      defaultZone: http://eureka-server:8761/eureka/
+  instance:
+    preferIpAddress: true
+
+logging:
+  level:
+    com.bank.notification: DEBUG

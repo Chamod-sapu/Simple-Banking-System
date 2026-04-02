@@ -1,0 +1,19 @@
+# Java/Maven
+target/
+*.class
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+
+# Visual Studio Code
+.vscode/
+
+# Build log files
+hs_err_pid*
+replay_pid*
+
+# Others
+.DS_Store
+*.log

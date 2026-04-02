@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: banking-frontend
+  labels:
+    app: banking-frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: banking-frontend
+  template:
+    metadata:
+      labels:
+        app: banking-frontend
+    spec:
+      containers:
+      - name: banking-frontend
+        image: bankingacr123.azurecr.io/microservices-banking-frontend:latest
+        ports:
+        - containerPort: 80
