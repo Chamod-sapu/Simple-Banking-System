@@ -14,6 +14,9 @@ target/
 hs_err_pid*
 replay_pid*
 
+# Jenkins
+Jenkinsfile
+
 # Others
 .DS_Store
 *.log
